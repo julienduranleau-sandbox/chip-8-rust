@@ -10,6 +10,8 @@ const HEIGHT: u8 = 32;
 const SCALE: u8 = 10;
 const WINDOW_WIDTH: u32 = WIDTH as u32 * SCALE as u32;
 const WINDOW_HEIGHT: u32 = HEIGHT as u32 * SCALE as u32;
+const VOLUME: f32 = 0.02;
+const WAVE_LENGTH: u32 = 440;
 
 struct Chip8 {
     display: [u8; WIDTH as usize * HEIGHT as usize],
@@ -17,6 +19,7 @@ struct Chip8 {
     // 0x200 to 0xFFF : Chip-8 program / data
     // 0x000 to 0x1FF : Interpreter (do not use)
     memory: [u8; 4096],
+
     /*
     1 2	3 C  =>  1 2 3 4
     4 5	6 D  =>  q w e r
@@ -24,6 +27,7 @@ struct Chip8 {
     A 0	B F  =>  z x c v
     */
     keys: [bool; 16],
+
     // V0 to VF
     registers: [u8; 16],
 
@@ -45,29 +49,17 @@ struct Chip8 {
     // Chip-8 allows for up to 16 levels of nested subroutines.
     stack: [u16; 16],
 
-    // Used to transfer clear request from cpu to Rust
+    // Transfer clear request from cpu to update
     needs_clear: bool,
 
+    // Request a cpu hold until a key is pressed. Value of key (0x0..0xF) is stored in register
     hold_for_key: Option<u8>,
-}
 
-impl Default for Chip8 {
-    fn default() -> Self {
-        Chip8 {
-            display: [0; WIDTH as usize * HEIGHT as usize],
-            memory: [0; 4096],
-            keys: [false; 16],
-            registers: [0; 16],
-            register_i: 0,
-            timer_sound: 0,
-            timer_delay: 0,
-            pc: 0x200,
-            sp: 0,
-            stack: [0; 16],
-            needs_clear: false,
-            hold_for_key: None,
-        }
-    }
+    // Thread channel. Send true to play sound, false to stop it
+    audio_control_channel: std::sync::mpsc::Sender<bool>,
+
+    // State variable for sound
+    audio_is_playing: bool,
 }
 
 fn main() {
@@ -98,6 +90,7 @@ fn model(app: &App) -> Chip8 {
         0: sprite number
         1: draw position x
         2: draw position y
+        3: sound duration
         */
         0x60, 0x00, // 6xkk - Set value kk in register x
         0x61, 0x00, // 6xkk - Set value kk in register x
@@ -110,53 +103,123 @@ fn model(app: &App) -> Chip8 {
         0x72, 0x06, // 7xkk - ADD Vx, byte
         0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
         0x61, 0x00, // 6xkk - Set value kk in register x
-        0x30, 0x0F, // 3xkk - Skip next instruction if Vx = kk
+        0x30, 0x10, // 3xkk - Skip next instruction if Vx = kk
         0x12, 0x06, // 1nnn - JP addr
+        // sound
+        0x63, 60, // 6xkk - Set value kk in register x
+        0xF3, 0x18, // Fx18 - Set sound timer = Vx
     ];
 
     for i in 0..instructions.len() {
         memory[0x200 + i] = instructions[i];
     }
 
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let _audio_thread_handle = std::thread::spawn(move || {
+        let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+        let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+        sink.set_volume(VOLUME);
+        sink.pause();
+        let source = rodio::source::SineWave::new(WAVE_LENGTH);
+        sink.append(source);
+
+        while let Ok(should_play) = rx.recv() {
+            if should_play {
+                sink.play();
+            } else {
+                sink.pause();
+            }
+        }
+    });
+
     Chip8 {
+        display: [0; WIDTH as usize * HEIGHT as usize],
         memory,
-        ..Default::default()
+        keys: [false; 16],
+        registers: [0; 16],
+        register_i: 0,
+        timer_sound: 0,
+        timer_delay: 0,
+        pc: 0x200,
+        sp: 0,
+        stack: [0; 16],
+        needs_clear: false,
+        hold_for_key: None,
+        audio_control_channel: tx,
+        audio_is_playing: false,
     }
 }
 
-fn key_pressed(_app: &App, _chip8: &mut Chip8, _key: Key) {}
+fn key_to_chip8_key_index(key: Key) -> Option<u8> {
+    match key {
+        Key::Key1 => Some(0x1),
+        Key::Key2 => Some(0x2),
+        Key::Key3 => Some(0x3),
+        Key::Key4 => Some(0xC),
+        Key::Q => Some(0x4),
+        Key::W => Some(0x5),
+        Key::E => Some(0x6),
+        Key::R => Some(0xD),
+        Key::A => Some(0x7),
+        Key::S => Some(0x8),
+        Key::D => Some(0x9),
+        Key::F => Some(0xE),
+        Key::Z => Some(0xA),
+        Key::X => Some(0x0),
+        Key::C => Some(0xB),
+        Key::V => Some(0xF),
+        _ => None,
+    }
+}
 
-fn key_released(_app: &App, _chip8: &mut Chip8, _key: Key) {}
+fn key_pressed(_app: &App, chip8: &mut Chip8, key: Key) {
+    if let Some(key_index) = key_to_chip8_key_index(key) {
+        if let Some(hold_for_key) = chip8.hold_for_key {
+            chip8.registers[hold_for_key as usize] = key_index;
+        }
+        chip8.keys[key_index as usize] = true;
+    }
+}
+
+fn key_released(_app: &App, chip8: &mut Chip8, key: Key) {
+    if let Some(key_index) = key_to_chip8_key_index(key) {
+        chip8.keys[key_index as usize] = false;
+    }
+}
 
 fn update(_app: &App, chip8: &mut Chip8, _update: Update) {
     if chip8.timer_delay > 0 {
         chip8.timer_delay -= 1;
     }
     if chip8.timer_sound > 0 {
-        chip8.timer_delay -= 1;
+        chip8.timer_sound -= 1;
     }
 
     if chip8.hold_for_key.is_none() {
         for _i in 0..1 {
             if chip8.pc < (chip8.memory.len() as u16 - 2) {
                 run_next_cpu_cycle(chip8);
-                // if chip8.pc <= (0x200 + 4) {
-                //     println!("{:?}", chip8.display);
-                // }
             }
 
-            if chip8.timer_sound > 0 {
-                // TODO play sound wave
+            if !chip8.audio_is_playing && chip8.timer_sound > 0 {
+                chip8.audio_is_playing = true;
+                chip8.audio_control_channel.send(true).unwrap();
+            } else if chip8.audio_is_playing && chip8.timer_sound == 0 {
+                chip8.audio_is_playing = false;
+                chip8.audio_control_channel.send(false).unwrap();
+            }
+
+            if chip8.needs_clear {
+                chip8.display = [0; WIDTH as usize * HEIGHT as usize];
+                chip8.needs_clear = false;
             }
         }
     }
 }
 
 fn view(app: &App, chip8: &Chip8, frame: Frame) {
-    if chip8.needs_clear {
-        frame.clear(BLACK);
-    }
-
+    frame.clear(BLACK);
     let draw = app.draw();
 
     for i in 0..chip8.display.len() {

@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 rand = "0.7.3"
 nannou = "0.15"
+rodio = "0.12.0"

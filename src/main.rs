@@ -85,30 +85,32 @@ fn model(app: &App) -> Chip8 {
     }
 
     // Load program in memory
-    let instructions: Vec<u8> = vec![
-        /*
-        0: sprite number
-        1: draw position x
-        2: draw position y
-        3: sound duration
-        */
-        0x60, 0x00, // 6xkk - Set value kk in register x
-        0x61, 0x00, // 6xkk - Set value kk in register x
-        0x62, 0x00, // 6xkk - Set value kk in register x
-        0xF0, 0x29, // Fx29 - Set I = location of sprite for digit Vx
-        0xD1, 0x25, // Dxyn - Draw sprite at rx,ry with n height
-        0x70, 0x01, // 7xkk - ADD Vx, byte
-        0x71, 0x05, // 7xkk - ADD Vx, byte
-        0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
-        0x72, 0x06, // 7xkk - ADD Vx, byte
-        0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
-        0x61, 0x00, // 6xkk - Set value kk in register x
-        0x30, 0x10, // 3xkk - Skip next instruction if Vx = kk
-        0x12, 0x06, // 1nnn - JP addr
-        // sound
-        0x63, 60, // 6xkk - Set value kk in register x
-        0xF3, 0x18, // Fx18 - Set sound timer = Vx
-    ];
+    // let instructions: Vec<u8> = vec![
+    //     /*
+    //     0: sprite number
+    //     1: draw position x
+    //     2: draw position y
+    //     3: sound duration
+    //     */
+    //     0x60, 0x00, // 6xkk - Set value kk in register x
+    //     0x61, 0x00, // 6xkk - Set value kk in register x
+    //     0x62, 0x00, // 6xkk - Set value kk in register x
+    //     0xF0, 0x29, // Fx29 - Set I = location of sprite for digit Vx
+    //     0xD1, 0x25, // Dxyn - Draw sprite at rx,ry with n height
+    //     0x70, 0x01, // 7xkk - ADD Vx, byte
+    //     0x71, 0x05, // 7xkk - ADD Vx, byte
+    //     0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
+    //     0x72, 0x06, // 7xkk - ADD Vx, byte
+    //     0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
+    //     0x61, 0x00, // 6xkk - Set value kk in register x
+    //     0x30, 0x10, // 3xkk - Skip next instruction if Vx = kk
+    //     0x12, 0x06, // 1nnn - JP addr
+    //     // sound
+    //     0x63, 60, // 6xkk - Set value kk in register x
+    //     0xF3, 0x18, // Fx18 - Set sound timer = Vx
+    // ];
+
+    let instructions = load_rom_from_file("roms/games/Breakout [Carmelo Cortez, 1979].ch8");
 
     for i in 0..instructions.len() {
         memory[0x200 + i] = instructions[i];
@@ -148,43 +150,6 @@ fn model(app: &App) -> Chip8 {
         hold_for_key: None,
         audio_control_channel: tx,
         audio_is_playing: false,
-    }
-}
-
-fn key_to_chip8_key_index(key: Key) -> Option<u8> {
-    match key {
-        Key::Key1 => Some(0x1),
-        Key::Key2 => Some(0x2),
-        Key::Key3 => Some(0x3),
-        Key::Key4 => Some(0xC),
-        Key::Q => Some(0x4),
-        Key::W => Some(0x5),
-        Key::E => Some(0x6),
-        Key::R => Some(0xD),
-        Key::A => Some(0x7),
-        Key::S => Some(0x8),
-        Key::D => Some(0x9),
-        Key::F => Some(0xE),
-        Key::Z => Some(0xA),
-        Key::X => Some(0x0),
-        Key::C => Some(0xB),
-        Key::V => Some(0xF),
-        _ => None,
-    }
-}
-
-fn key_pressed(_app: &App, chip8: &mut Chip8, key: Key) {
-    if let Some(key_index) = key_to_chip8_key_index(key) {
-        if let Some(hold_for_key) = chip8.hold_for_key {
-            chip8.registers[hold_for_key as usize] = key_index;
-        }
-        chip8.keys[key_index as usize] = true;
-    }
-}
-
-fn key_released(_app: &App, chip8: &mut Chip8, key: Key) {
-    if let Some(key_index) = key_to_chip8_key_index(key) {
-        chip8.keys[key_index as usize] = false;
     }
 }
 
@@ -243,117 +208,6 @@ fn view(app: &App, chip8: &Chip8, frame: Frame) {
     }
 
     draw.to_frame(app, &frame).unwrap();
-}
-
-fn get_digit_sprites() -> [u8; 80] {
-    {
-        /*
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        *  *  10010000  0x90
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-
-          *   00100000  0x20
-         **   01100000  0x60
-          *   00100000  0x20
-          *   00100000  0x20
-         ***  01110000  0x70
-
-        ****  11110000  0xF0
-           *  00010000  0x10
-        ****  11110000  0xF0
-        *     10000000  0x80
-        ****  11110000  0xF0
-
-        ****  11110000  0xF0
-           *  00010000  0x10
-        ****  11110000  0xF0
-           *  00010000  0x10
-        ****  11110000  0xF0
-
-        *  *  10010000  0x90
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-           *  00010000  0x10
-           *  00010000  0x10
-
-        ****  11110000  0xF0
-        *     10000000  0x80
-        ****  11110000  0xF0
-           *  00010000  0x10
-        ****  11110000  0xF0
-
-        ****  11110000  0xF0
-        *     10000000  0x80
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-
-        ****  11110000  0xF0
-           *  00010000  0x10
-          *   00100000  0x20
-         *    01000000  0x40
-         *    01000000  0x40
-
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-           *  00010000  0x10
-        ****  11110000  0xF0
-
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        ****  11110000  0xF0
-        *  *  10010000  0x90
-        *  *  10010000  0x90
-
-        ***   11100000  0xE0
-        *  *  10010000  0x90
-        ***   11100000  0xE0
-        *  *  10010000  0x90
-        ***   11100000  0xE0
-
-        ****  11110000  0xF0
-        *     10000000  0x80
-        *     10000000  0x80
-        *     10000000  0x80
-        ****  11110000  0xF0
-
-        ***   11100000  0xE0
-        *  *  10010000  0x90
-        *  *  10010000  0x90
-        *  *  10010000  0x90
-        ***   11100000  0xE0
-
-        ****  11110000  0xF0
-        *     10000000  0x80
-        ****  11110000  0xF0
-        *     10000000  0x80
-        ****  11110000  0xF0
-
-        ****  11110000  0xF0
-        *     10000000  0x80
-        ****  11110000  0xF0
-        *     10000000  0x80
-        *     10000000  0x80
-        */
-    }
-
-    return [
-        0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0,
-        0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0,
-        0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0,
-        0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0,
-        0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0,
-        0xF0, 0x80, 0xF0, 0x80, 0x80,
-    ];
 }
 
 fn run_next_cpu_cycle(chip8: &mut Chip8) {
@@ -656,5 +510,163 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
             }
         }
         _ => {}
+    }
+}
+
+fn get_digit_sprites() -> [u8; 80] {
+    {
+        /*
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        *  *  10010000  0x90
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+
+          *   00100000  0x20
+         **   01100000  0x60
+          *   00100000  0x20
+          *   00100000  0x20
+         ***  01110000  0x70
+
+        ****  11110000  0xF0
+           *  00010000  0x10
+        ****  11110000  0xF0
+        *     10000000  0x80
+        ****  11110000  0xF0
+
+        ****  11110000  0xF0
+           *  00010000  0x10
+        ****  11110000  0xF0
+           *  00010000  0x10
+        ****  11110000  0xF0
+
+        *  *  10010000  0x90
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+           *  00010000  0x10
+           *  00010000  0x10
+
+        ****  11110000  0xF0
+        *     10000000  0x80
+        ****  11110000  0xF0
+           *  00010000  0x10
+        ****  11110000  0xF0
+
+        ****  11110000  0xF0
+        *     10000000  0x80
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+
+        ****  11110000  0xF0
+           *  00010000  0x10
+          *   00100000  0x20
+         *    01000000  0x40
+         *    01000000  0x40
+
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+           *  00010000  0x10
+        ****  11110000  0xF0
+
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        ****  11110000  0xF0
+        *  *  10010000  0x90
+        *  *  10010000  0x90
+
+        ***   11100000  0xE0
+        *  *  10010000  0x90
+        ***   11100000  0xE0
+        *  *  10010000  0x90
+        ***   11100000  0xE0
+
+        ****  11110000  0xF0
+        *     10000000  0x80
+        *     10000000  0x80
+        *     10000000  0x80
+        ****  11110000  0xF0
+
+        ***   11100000  0xE0
+        *  *  10010000  0x90
+        *  *  10010000  0x90
+        *  *  10010000  0x90
+        ***   11100000  0xE0
+
+        ****  11110000  0xF0
+        *     10000000  0x80
+        ****  11110000  0xF0
+        *     10000000  0x80
+        ****  11110000  0xF0
+
+        ****  11110000  0xF0
+        *     10000000  0x80
+        ****  11110000  0xF0
+        *     10000000  0x80
+        *     10000000  0x80
+        */
+    }
+
+    return [
+        0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0,
+        0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0,
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0,
+        0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0,
+        0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0,
+        0xF0, 0x80, 0xF0, 0x80, 0x80,
+    ];
+}
+
+fn key_to_chip8_key_index(key: Key) -> Option<u8> {
+    match key {
+        Key::Key1 => Some(0x1),
+        Key::Key2 => Some(0x2),
+        Key::Key3 => Some(0x3),
+        Key::Key4 => Some(0xC),
+        Key::Q => Some(0x4),
+        Key::W => Some(0x5),
+        Key::E => Some(0x6),
+        Key::R => Some(0xD),
+        Key::A => Some(0x7),
+        Key::S => Some(0x8),
+        Key::D => Some(0x9),
+        Key::F => Some(0xE),
+        Key::Z => Some(0xA),
+        Key::X => Some(0x0),
+        Key::C => Some(0xB),
+        Key::V => Some(0xF),
+        _ => None,
+    }
+}
+
+fn key_pressed(_app: &App, chip8: &mut Chip8, key: Key) {
+    if let Some(key_index) = key_to_chip8_key_index(key) {
+        if let Some(hold_for_key) = chip8.hold_for_key {
+            chip8.registers[hold_for_key as usize] = key_index;
+        }
+        chip8.keys[key_index as usize] = true;
+    }
+}
+
+fn key_released(_app: &App, chip8: &mut Chip8, key: Key) {
+    if let Some(key_index) = key_to_chip8_key_index(key) {
+        chip8.keys[key_index as usize] = false;
+    }
+}
+
+fn load_rom_from_file(filepath: &str) -> Vec<u8> {
+    match std::fs::read(filepath) {
+        Ok(instructions) => instructions,
+        Err(err) => {
+            println!("Error reading ROM at {} : {}", filepath, err);
+            panic!();
+        }
     }
 }

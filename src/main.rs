@@ -142,7 +142,7 @@ fn update(_app: &App, chip8: &mut Chip8, _update: Update) {
     }
 
     if chip8.hold_for_key.is_none() {
-        for _i in 0..5 {
+        for _i in 0..10 {
             if chip8.pc < (chip8.memory.len() as u16 - 2) {
                 run_next_cpu_cycle(chip8);
             }
@@ -266,15 +266,8 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
         // 7xkk - ADD Vx, byte
         0x7000 => {
             // Set Vx = Vx + kk
-            chip8.registers[x as usize] = match chip8.registers[x as usize].checked_add(kk) {
-                Some(n) => n,
-                None => 255,
-            }
-            // if 255 - chip8.registers[x as usize] >= kk {
-            //     chip8.registers[x as usize] += kk;
-            // } else {
-            //     chip8.registers[x as usize] = 255;
-            // }
+            let result = chip8.registers[x as usize] as u16 + kk as u16;
+            chip8.registers[x as usize] = (result & 0xFF) as u8
         }
         0x8000 => {
             match opcode & 0x000F {
@@ -303,7 +296,7 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                     // Set Vx = Vx + Vy, set VF = carry
                     let result =
                         (chip8.registers[x as usize] as u16) + (chip8.registers[y as usize] as u16);
-                    chip8.registers[x as usize] = (result & 0x00FF) as u8;
+                    chip8.registers[x as usize] = (result & 0xFF) as u8;
                     chip8.registers[0xF] = if result > 0xFF { 1 } else { 0 }
                 }
                 // 8xy5 - SUB Vx, Vy
@@ -315,12 +308,11 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                         } else {
                             0
                         };
-                    chip8.registers[x as usize] = match chip8.registers[x as usize]
-                        .checked_sub(chip8.registers[y as usize])
-                    {
-                        Some(n) => n,
-                        None => 0,
-                    };
+                    chip8.registers[x as usize] =
+                        match chip8.registers[x as usize].checked_sub(chip8.registers[y as usize]) {
+                            Some(n) => n,
+                            None => 0,
+                        }
                 }
                 // 8xy6 - SHR Vx {, Vy}
                 0x6 => {
@@ -337,6 +329,7 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                         } else {
                             0
                         };
+
                     chip8.registers[x as usize] =
                         match chip8.registers[y as usize].checked_sub(chip8.registers[x as usize]) {
                             Some(n) => n,

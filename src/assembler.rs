@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+#[allow(dead_code)]
 pub fn assemble(filename: &str) -> Vec<u8> {
     let mut instructions: Vec<u8> = vec![];
 
@@ -10,7 +11,7 @@ pub fn assemble(filename: &str) -> Vec<u8> {
     for (_index, line) in reader.lines().enumerate() {
         if let Ok(line) = line {
             if let Some(opcode) = parse_asm_line(line) {
-                instructions.push((opcode & 0xFF00 >> 8) as u8);
+                instructions.push(((opcode & 0xFF00) >> 8) as u8);
                 instructions.push((opcode & 0x00FF) as u8);
             }
         }
@@ -19,10 +20,12 @@ pub fn assemble(filename: &str) -> Vec<u8> {
     instructions
 }
 
+#[allow(dead_code)]
 pub fn parse_asm_line(line: String) -> Option<u16> {
     let parts: Vec<&str> = line.split(" ").collect();
 
     let command = parts[0];
+
     let x = if parts.len() >= 2 && parts[1].starts_with('V') {
         parts[1].trim_start_matches("V").trim_end_matches(",")
     } else {
@@ -44,7 +47,7 @@ pub fn parse_asm_line(line: String) -> Option<u16> {
         String::default()
     };
     let n = if parts.len() >= 4 {
-        format!("{}", parts[3].trim_start_matches("V"))
+        format!("{}", parts[3].trim_start_matches("0x"))
     } else {
         String::default()
     };
@@ -62,7 +65,7 @@ pub fn parse_asm_line(line: String) -> Option<u16> {
             if parts.len() == 2 {
                 Some(format!("1{}", nnn))
             } else {
-                Some(format!("B{:0>2}", parts[2]))
+                Some(format!("B{:0>2}", parts[2].trim_start_matches("0x")))
             }
         }
         // 2nnn - CALL addr
@@ -101,11 +104,8 @@ pub fn parse_asm_line(line: String) -> Option<u16> {
         // Fx55 - LD [I], Vx
         // Fx65 - LD Vx, [I]
         "LD" => {
-            // Vx, byte
-            if !x.is_empty() && !kk.is_empty() {
-                Some(format!("6{}{}", x, kk))
             // Vx, Vy
-            } else if !x.is_empty() && !y.is_empty() {
+            if !x.is_empty() && !y.is_empty() {
                 Some(format!("8{}{}0", x, y))
             // I, addr
             } else if parts[1] == "I," && parts[2].starts_with("0x") {
@@ -117,23 +117,26 @@ pub fn parse_asm_line(line: String) -> Option<u16> {
             } else if !x.is_empty() && parts[2] == "K" {
                 Some(format!("F{}0A", x))
             // DT, Vx
-            } else if parts[1] == "DT" && !y.is_empty() {
+            } else if parts[1] == "DT," && !y.is_empty() {
                 Some(format!("F{}15", y))
             // ST, Vx
-            } else if parts[1] == "ST" && !y.is_empty() {
+            } else if parts[1] == "ST," && !y.is_empty() {
                 Some(format!("F{}18", y))
             // F, Vx
-            } else if parts[1] == "F" && !y.is_empty() {
+            } else if parts[1] == "F," && !y.is_empty() {
                 Some(format!("F{}29", y))
             // B, Vx
-            } else if parts[1] == "B" && !y.is_empty() {
+            } else if parts[1] == "B," && !y.is_empty() {
                 Some(format!("F{}33", y))
             // I, Vx
-            } else if parts[1] == "I" && !y.is_empty() {
+            } else if parts[1] == "I," && !y.is_empty() {
                 Some(format!("F{}55", y))
             // Vx, I
             } else if !x.is_empty() && parts[2] == "I" {
-                Some(format!("F{}65", y))
+                Some(format!("F{}65", x))
+            // Vx, byte
+            } else if !x.is_empty() && !kk.is_empty() {
+                Some(format!("6{}{}", x, kk))
             } else {
                 None
             }
@@ -195,6 +198,7 @@ pub fn parse_asm_line(line: String) -> Option<u16> {
             println!("Opcode: {:#06x}", opcode);
             Some(opcode)
         } else {
+            println!("{}", line);
             println!("x: {}", x);
             println!("y: {}", y);
             println!("n: {}", n);
@@ -210,6 +214,7 @@ pub fn parse_asm_line(line: String) -> Option<u16> {
 
 #[test]
 fn test_parse_asm_line() {
+    // Default tests
     assert_eq!(parse_asm_line(String::from("SYS 0xFE9")), Some(0x0FE9));
     assert_eq!(parse_asm_line(String::from("CLS")), Some(0x00E0));
     assert_eq!(parse_asm_line(String::from("RET")), Some(0x00EE));
@@ -250,4 +255,7 @@ fn test_parse_asm_line() {
     assert_eq!(parse_asm_line(String::from("LD B, VB")), Some(0xFB33));
     assert_eq!(parse_asm_line(String::from("LD I, VD")), Some(0xFD55));
     assert_eq!(parse_asm_line(String::from("LD VC, I")), Some(0xFC65));
+
+    // Edge cases
+    assert_eq!(parse_asm_line(String::from("LD VA, 0x2")), Some(0x6A02));
 }

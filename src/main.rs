@@ -86,35 +86,11 @@ fn model(app: &App) -> Chip8 {
         memory[0x0 + i] = digit_sprites[i];
     }
 
-    // Load program in memory
-    // let instructions: Vec<u8> = vec![
-    //     /*
-    //     0: sprite number
-    //     1: draw position x
-    //     2: draw position y
-    //     3: sound duration
-    //     */
-    //     0x60, 0x00, // 6xkk - Set value kk in register x
-    //     0x61, 0x00, // 6xkk - Set value kk in register x
-    //     0x62, 0x00, // 6xkk - Set value kk in register x
-    //     0xF0, 0x29, // Fx29 - Set I = location of sprite for digit Vx
-    //     0xD1, 0x25, // Dxyn - Draw sprite at rx,ry with n height
-    //     0x70, 0x01, // 7xkk - ADD Vx, byte
-    //     0x71, 0x05, // 7xkk - ADD Vx, byte
-    //     0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
-    //     0x72, 0x06, // 7xkk - ADD Vx, byte
-    //     0x40, 0x0D, // 4xkk - Skip next instruction if Vx != kk
-    //     0x61, 0x00, // 6xkk - Set value kk in register x
-    //     0x30, 0x10, // 3xkk - Skip next instruction if Vx = kk
-    //     0x12, 0x06, // 1nnn - JP addr
-    //     // sound
-    //     0x63, 60, // 6xkk - Set value kk in register x
-    //     0xF3, 0x18, // Fx18 - Set sound timer = Vx
-    // ];
+    let instructions = load_rom_from_file("roms/pong2.rom");
+    // let instructions = assembler::assemble("asm/test.cp8asm");
 
-    // let instructions = load_rom_from_file("roms/games/Breakout [Carmelo Cortez, 1979].ch8");
-
-    let instructions = assembler::assemble("asm/test.cp8asm");
+    println!("===================================");
+    println!("Starting emulation with {} opcodes.", instructions.len());
 
     for i in 0..instructions.len() {
         memory[0x200 + i] = instructions[i];
@@ -166,7 +142,7 @@ fn update(_app: &App, chip8: &mut Chip8, _update: Update) {
     }
 
     if chip8.hold_for_key.is_none() {
-        for _i in 0..1 {
+        for _i in 0..5 {
             if chip8.pc < (chip8.memory.len() as u16 - 2) {
                 run_next_cpu_cycle(chip8);
             }
@@ -290,7 +266,15 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
         // 7xkk - ADD Vx, byte
         0x7000 => {
             // Set Vx = Vx + kk
-            chip8.registers[x as usize] += kk;
+            chip8.registers[x as usize] = match chip8.registers[x as usize].checked_add(kk) {
+                Some(n) => n,
+                None => 255,
+            }
+            // if 255 - chip8.registers[x as usize] >= kk {
+            //     chip8.registers[x as usize] += kk;
+            // } else {
+            //     chip8.registers[x as usize] = 255;
+            // }
         }
         0x8000 => {
             match opcode & 0x000F {
@@ -331,7 +315,12 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                         } else {
                             0
                         };
-                    chip8.registers[x as usize] -= chip8.registers[y as usize];
+                    chip8.registers[x as usize] = match chip8.registers[x as usize]
+                        .checked_sub(chip8.registers[y as usize])
+                    {
+                        Some(n) => n,
+                        None => 0,
+                    };
                 }
                 // 8xy6 - SHR Vx {, Vy}
                 0x6 => {
@@ -349,7 +338,10 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                             0
                         };
                     chip8.registers[x as usize] =
-                        chip8.registers[y as usize] - chip8.registers[x as usize];
+                        match chip8.registers[y as usize].checked_sub(chip8.registers[x as usize]) {
+                            Some(n) => n,
+                            None => 0,
+                        }
                 }
                 // 8xyE - SHL Vx {, Vy}
                 0xE => {
@@ -409,8 +401,8 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                 let sprite_line = chip8.memory[(chip8.register_i + line as u16) as usize];
                 for column in 0..8 {
                     // wrap around with %
-                    let pos_x = (start_x + column) % WIDTH;
-                    let pos_y = (start_y + line) % HEIGHT;
+                    let pos_x = ((start_x % WIDTH) + column) % WIDTH;
+                    let pos_y = ((start_y % HEIGHT) + line) % HEIGHT;
                     // println!("Pixel at {}({}),{}({})", pos_x, column, pos_y, line);
 
                     let px_index = (pos_y as usize) * 64 + (pos_x as usize);

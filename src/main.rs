@@ -667,6 +667,7 @@ fn key_released(_app: &App, chip8: &mut Chip8, key: Key) {
     }
 }
 
+#[allow(dead_code)]
 fn load_rom_from_file(filepath: &str) -> Vec<u8> {
     match std::fs::read(filepath) {
         Ok(instructions) => instructions,

@@ -3,6 +3,8 @@
 // https://github.com/nannou-org/nannou
 // https://www.freecodecamp.org/news/creating-your-very-own-chip-8-emulator/
 
+mod assembler;
+
 use nannou::prelude::*;
 
 const WIDTH: u8 = 64;
@@ -110,7 +112,9 @@ fn model(app: &App) -> Chip8 {
     //     0xF3, 0x18, // Fx18 - Set sound timer = Vx
     // ];
 
-    let instructions = load_rom_from_file("roms/games/Breakout [Carmelo Cortez, 1979].ch8");
+    // let instructions = load_rom_from_file("roms/games/Breakout [Carmelo Cortez, 1979].ch8");
+
+    let instructions = assembler::assemble("asm/test.cp8asm");
 
     for i in 0..instructions.len() {
         memory[0x200 + i] = instructions[i];
@@ -493,7 +497,8 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                     // Store chip8.registers V0 through Vx in chip8.memory starting at location I
                     // The interpreter copies the values of chip8.registers V0 through Vx into chip8.memory, starting at the address in I
                     // I itself is left unmodified
-                    for i in 0..chip8.registers.len() {
+
+                    for i in 0..=(x as usize) {
                         chip8.memory[(chip8.register_i as usize) + i] = chip8.registers[i];
                     }
                 }
@@ -502,7 +507,8 @@ fn run_next_cpu_cycle(chip8: &mut Chip8) {
                     // Read chip8.registers V0 through Vx from chip8.memory starting at location I
                     // The interpreter reads values from chip8.memory starting at location I into chip8.registers V0 through Vx
                     // I itself is left unmodified
-                    for i in 0..chip8.registers.len() {
+
+                    for i in 0..=(x as usize) {
                         chip8.registers[i] = chip8.memory[(chip8.register_i as usize) + i];
                     }
                 }

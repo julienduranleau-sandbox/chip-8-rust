@@ -1,7 +1,6 @@
 // http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.1
 // https://en.wikipedia.org/wiki/CHIP-8#Opcode_table
 // https://github.com/nannou-org/nannou
-// https://www.freecodecamp.org/news/creating-your-very-own-chip-8-emulator/
 
 mod assembler;
 

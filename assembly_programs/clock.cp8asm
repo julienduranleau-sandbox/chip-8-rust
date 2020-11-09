@@ -1,46 +1,89 @@
-; V0 : Sprite to draw
-; V1 : x position seconds
-; V2 : x position minutes
-; V3 : x position hours
-; V4 : y position
+; V0 : BCD hundreds
+; V1 : BCD tens
+; V2 : BCD digit
+; V3 : Sprite to draw
+; V6 : x position
+; V7 : y position
+; V8 : 60 for delay timer
+; V9 : Current delay timer (copy for SNE)
 ; VA : seconds
 ; VB : minutes
 ; VC : hours
 
-LD V1, 0
-LD V2, 6
-LD V3, 12
-LD V4, 3
+LD V7, 12           ; Y position
+LD V8, 60           ; 60 for 1 second. Used with DT
 
 draw:
-    ; Draw seconds
-    LD V0, VA
-    LD F, V0
-    DRW V1, V4, 5
+    CLS             ; Clear the screen
 
-    ; Draw minutes
-    LD V0, VB
-    LD F, V0
-    DRW V2, V4, 5
+    LD V6, 12       ; Initial x position
 
-    ; Draw hours
-    LD V0, VB
-    LD F, V0
-    DRW V2, V4, 5
+    ; Load hours
+    LD I, 0xF00     ; Pick an arbitrary position in memory
+    LD B, VC        ; Store BCD into I, I+1, I+2
+    LD V2, I        ; Load BCD into V0, V1, V2
+    
+    ; Draw hours tens digit
+    LD F, V1
+    DRW V6, V7, 5
+    ADD V6, 6
+    
+    ; Draw hours one digit
+    LD F, V2
+    DRW V6, V7, 5
+    ADD V6, 8
 
-    ADD VA, 1
+    ; Load minutes
+    LD I, 0xF00     ; Pick an arbitrary position in memory
+    LD B, VB        ; Store BCD into I, I+1, I+2
+    LD V2, I        ; Load BCD into V0, V1, V2
+    
+    ; Draw minutes tens digit
+    LD F, V1
+    DRW V6, V7, 5
+    ADD V6, 6
+    
+    ; Draw minutes one digit
+    LD F, V2
+    DRW V6, V7, 5
+    ADD V6, 8
+
+    ; Load seconds
+    LD I, 0xF00     ; Pick an arbitrary position in memory
+    LD B, VA        ; Store BCD into I, I+1, I+2
+    LD V2, I        ; Load BCD into V0, V1, V2
+    
+    ; Draw seconds tens digit
+    LD F, V1
+    DRW V6, V7, 5
+    ADD V6, 6
+    
+    ; Draw seconds one digit
+    LD F, V2
+    DRW V6, V7, 5
+
+    ADD VA, 1       ; Add one to the seconds
 
 check_seconds:
-    SNE VA, 60
+    SE VA, 60       ; If seconds are equal to 60, skip next line to prevent the jump ahead
     JP check_minutes
-    LD VA, 0
-    ADD VB, 1
+    LD VA, 0        ; Reset seconds to 0
+    ADD VB, 1       ; Add one minute
 
 check_minutes:
-    SNE VB, 60
+    SE VB, 60       ; If minutes are equal to 60, skip next line to prevent the jump ahead
     JP check_hours
-    LD VB, 0
-    ADD VC, 1
+    LD VB, 0        ; Reset minutes to 0
+    ADD VC, 1       ; Add one hour
 
 check_hours:
+
+wait_one_sec:
+    LD DT, V8       ; Load 60 (1 second) into the delay timer 
+loop_wait_one_sec:
+    LD V9, DT       ; Load the current value of DT into V9
+    SE V9, 0        ; If the delay timer is now 0, go redraw, else loop and wait
+    JP loop_wait_one_sec
     JP draw
+
+end:

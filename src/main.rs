@@ -86,8 +86,8 @@ fn model(app: &App) -> Chip8 {
         memory[0x0 + i] = digit_sprites[i];
     }
 
-    let instructions = load_rom_from_file("roms/pong2.rom");
-    // let instructions = assembler::assemble("asm/test.cp8asm");
+    // let instructions = load_rom_from_file("roms/games/Pong 2 (Pong hack) [David Winter, 1997].ch8");
+    let instructions = assembler::assemble("assembly_programs/clock.cp8asm");
 
     println!("===================================");
     println!("Starting emulation with {} opcodes.", instructions.len());
@@ -142,7 +142,8 @@ fn update(_app: &App, chip8: &mut Chip8, _update: Update) {
     }
 
     if chip8.hold_for_key.is_none() {
-        for _i in 0..10 {
+        // 500hz / 60fps = ~8 instructions per frame
+        for _i in 0..8 {
             if chip8.pc < (chip8.memory.len() as u16 - 2) {
                 run_next_cpu_cycle(chip8);
             }

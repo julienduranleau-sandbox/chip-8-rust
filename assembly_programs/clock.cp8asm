@@ -1,0 +1,46 @@
+; V0 : Sprite to draw
+; V1 : x position seconds
+; V2 : x position minutes
+; V3 : x position hours
+; V4 : y position
+; VA : seconds
+; VB : minutes
+; VC : hours
+
+LD V1, 0
+LD V2, 6
+LD V3, 12
+LD V4, 3
+
+draw:
+    ; Draw seconds
+    LD V0, VA
+    LD F, V0
+    DRW V1, V4, 5
+
+    ; Draw minutes
+    LD V0, VB
+    LD F, V0
+    DRW V2, V4, 5
+
+    ; Draw hours
+    LD V0, VB
+    LD F, V0
+    DRW V2, V4, 5
+
+    ADD VA, 1
+
+check_seconds:
+    SNE VA, 60
+    JP check_minutes
+    LD VA, 0
+    ADD VB, 1
+
+check_minutes:
+    SNE VB, 60
+    JP check_hours
+    LD VB, 0
+    ADD VC, 1
+
+check_hours:
+    JP draw
